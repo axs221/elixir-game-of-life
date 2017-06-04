@@ -1,39 +1,30 @@
 defmodule GameOfLife do
-  @iterations 10
+  @iterations 20
   @delay_ms 100
 
   def generate_board do
-    generate = ( fn (inner_fun) -> Enum.map(1..10, fn _ -> inner_fun.() end) end ) 
-
-    cell = fn -> generate.( fn ->
-        case round(:rand.uniform()) do
-          0 -> false
-          1 -> true
-        end
-      end )
-    end
-
-    generate.( fn  -> cell.() end )
+    for x <- 0..9, into: %{} do
+      { x, for y <- 0..9, into: %{} do
+        { y,
+          ( if round(:rand.uniform()) == 1, do: true, else: false ) 
+        } end 
+      } end
   end
 
-  def get_neighbors(x, y) do
-    not_current_cell = fn x, y -> x !== 0 || y !== 0 end
-    not_too_small = fn x, y -> x >= 0 && y >= 0 end
-    not_too_large = fn x, y -> x < 10 && y < 10 end
-    Enum.flat_map(for xo <- -1..1 do
-      for yo <- -1..1,
-      not_current_cell.(xo, yo),
-      not_too_small.(x + xo, y + yo),
-      not_too_large.(x + xo, y + yo) do
-        %{x: x + xo, y: y + yo}
+  def get_neighbors(current_x, current_y) do
+    for x_offset <- -1..1, y_offset <- -1..1,
+      x = current_x + x_offset,
+      y = current_y + y_offset,
+      x in 0..9 && y in 0..9,
+      x !== current_x || y !== current_y do
+        %{x: x, y: y}
       end
-    end, fn x -> x end)
   end
 
   def determine_is_alive(cell, board, x, y) do
-    get_cell = fn n -> Enum.at(Enum.at(board, n.x), n.y) end
+    get_cell = fn n -> board[n.x][n.y] end
 
-    currently_alive = elem(cell, 0)
+    currently_alive = cell
     alive_neighbors_count = get_neighbors(x, y)
       |> Enum.map(&get_cell.(&1))
       |> Enum.reduce(0, fn n, acc -> case n do
@@ -53,12 +44,12 @@ defmodule GameOfLife do
   end
 
   def iterate(board, i) when i < @iterations do
-    new_board = Enum.map(Enum.with_index(board), fn row ->
-      Enum.map(Enum.with_index(elem(row, 0)), fn cell ->
-        result = determine_is_alive(cell, board, elem(row, 1), elem(cell, 1))
-        result
-      end)
-    end)
+    new_board = for x <- 0..9, into: %{} do
+      { x, for y <- 0..9, into: %{} do 
+        { y,
+          determine_is_alive(board[x][y], board, x, y)
+        } end 
+      } end
 
     print_board new_board
     Process.sleep(@delay_ms)
@@ -71,20 +62,21 @@ defmodule GameOfLife do
 
   def print_board(board) do
     IO.puts "-----------------"
-    IO.puts(for row <- board do
-      (for cell <- row do
-        case cell do
-          false -> ' '
-          true -> '*'
-        end
-      end) ++ "\n"
-    end)
+    IO.puts(
+      for x <- 0..9 do
+        for y <- 0..9 do
+          case board[x][y] do
+            true  -> '*'
+            false -> ' '
+          end
+        end ++ "\n"
+      end
+    )
   end
 
   def run do
     board = generate_board()
     print_board board
-
     iterate board, 0 
   end
 end
